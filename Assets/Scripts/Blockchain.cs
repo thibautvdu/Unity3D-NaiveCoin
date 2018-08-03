@@ -26,6 +26,7 @@ public class Blockchain : MonoBehaviour {
 
     [SerializeField]
     private Block blockPrefab;
+    private Color chainColor;
 
     public static int GetAccumulatedDifficulty(List<Block> chain)
     {
@@ -38,9 +39,12 @@ public class Blockchain : MonoBehaviour {
     /// </summary>
     /// <param name="nodeAddress">the public key of the node for the genesis block</param>
     /// <param name="difficulty">the starting difficulty of the chain</param>
-    public void Init(string nodeAddress, int difficulty)
+    public void Init(string nodeAddress, int difficulty, Color chainColor)
     {
+        this.chainColor = chainColor;
+
         Block genesisBlock = Instantiate(blockPrefab);
+        genesisBlock.SetColor(chainColor);
         genesisBlock.InitAsGenesis(nodeAddress, difficulty);
 
         unspentTxOuts = genesisBlock.ProcessTransactions(unspentTxOuts);
@@ -141,6 +145,7 @@ public class Blockchain : MonoBehaviour {
         DateTime nextTimestamp = DateTime.Now;
 
         currentlyMining = Instantiate(blockPrefab);
+        currentlyMining.SetColor(chainColor);
         currentlyMining.Init(nextIndex, nextTimestamp, prev.hash, data.ToArray(), difficulty);
         PlaceBlock(currentlyMining);
 

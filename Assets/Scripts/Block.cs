@@ -27,7 +27,14 @@ public class Block : MonoBehaviour, ICloneable {
 
     void Start()
     {
-        blockSprite.color = new Color(1, 1, 1, 1);
+        Color c = blockSprite.color;
+        c.a = 1;
+        blockSprite.color = c;
+    }
+
+    public void SetColor(Color c)
+    {
+        blockSprite.color = c;
     }
 
     /// <summary>
@@ -93,12 +100,14 @@ public class Block : MonoBehaviour, ICloneable {
     public IEnumerator MineBlock(Node.Callback onMined)
     {
         Canvas animatedHash;
+        Color plainColor = blockSprite.color;
+        Color fadedColor = new Color(plainColor.r, plainColor.g, plainColor.b, 0.2f);
         do
         {
             yield return new WaitForSeconds(1 / 20f); // limit the mining speed to make the animation more readable
             nonce++;
             hash = ComputeHash();
-            blockSprite.color = Color.Lerp(Color.white, new Color(1,1,1,0.2f), Time.time % 1);
+            blockSprite.color = Color.Lerp(plainColor, fadedColor, Time.time % 1);
             animatedHash = Instantiate(animatedHashPrefab, transform, false);
             animatedHash.GetComponentInChildren<Text>().text = hash;
         } while (!Cryptography.HashMatchesDifficulty(hash, difficulty));
@@ -106,7 +115,7 @@ public class Block : MonoBehaviour, ICloneable {
         animatedHash.GetComponent<Animator>().SetTrigger("MatchDifficulty");
         animatedHash.GetComponentInChildren<Text>().color = Color.green;
 
-        blockSprite.color = Color.white;
+        blockSprite.color = plainColor;
 
         onMined();
     }

@@ -73,7 +73,7 @@ public class Node : MonoBehaviour {
     {
         NodeId = NbInstance++;
         wallet = new Wallet(NodeId);
-        blockchain.Init(wallet.PublicKey, 2);
+        blockchain.Init(wallet.PublicKey, 2, GetComponent<SpriteRenderer>().color);
 
         peers = FindObjectsOfType<Node>().ToList();
         peers.Remove(this);

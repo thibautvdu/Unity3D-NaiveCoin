@@ -5,6 +5,8 @@ using UnityEngine.UI;
 
 public class UiControl : MonoBehaviour {
     [SerializeField]
+    private Image menuBackground;
+    [SerializeField]
     private Text balance;
     [SerializeField]
     private Dropdown receiverNode;
@@ -20,7 +22,7 @@ public class UiControl : MonoBehaviour {
     void FixedUpdate()
     {
         if (selectedNode == null) balance.text = "no node selected";
-        else balance.text = "Balance : " + selectedNode.GetNodeBalance();
+        else balance.text = "Node #"  + selectedNode.NodeId + ", balance : " + selectedNode.GetNodeBalance();
     }
 
     /// <summary>
@@ -46,11 +48,6 @@ public class UiControl : MonoBehaviour {
         if(selectedNode == null)
         {
             Debug.LogError("couldn't retrieve the node from address in the scene");
-        }
-        else
-        {
-            currentNodes.ForEach(n => n.GetComponent<SpriteRenderer>().color = new Color(1,1,1,0.75f));
-            selectedNode.GetComponent<SpriteRenderer>().color = Color.white;
         }
     }
 

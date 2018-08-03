@@ -2,6 +2,9 @@
 using System.Linq;
 using UnityEngine;
 
+/// <summary>
+/// https://lhartikk.github.io/jekyll/update/2017/07/10/chapter5.html
+/// </summary>
 public class TransactionPool {
     private List<Transaction> transactions = new List<Transaction>();
 

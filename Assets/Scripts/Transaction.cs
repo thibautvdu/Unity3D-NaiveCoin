@@ -1,10 +1,16 @@
-﻿using System.Text;
-using UnityEngine;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System;
 using System.Security.Cryptography;
+using System.Text;
+using UnityEngine;
 
+/// <summary>
+/// Reminder :
+/// unspent tx outs give the balances of the network
+/// tx ins 'unlock' coins from the sender
+/// tx outs designate the receiver and the amount (lock the coins for the receiver)
+/// </summary>
 public class Transaction : ICloneable {
     public static readonly int COINBASE_AMOUNT = 50;
 
@@ -122,6 +128,14 @@ public class Transaction : ICloneable {
     public TxIn[] txIns;
     public TxOut[] txOuts;
 
+    /// <summary>
+    /// The coinbase transaction rewards the miner. There is one per block,
+    /// the node should add one when it starts mining a block to get the 
+    /// reward if it finds it first
+    /// </summary>
+    /// <param name="address"></param>
+    /// <param name="blockIndex"></param>
+    /// <returns></returns>
     public static Transaction CreateCoinbaseTransaction(string address, int blockIndex)
     {
         Transaction t = new Transaction();
@@ -134,6 +148,16 @@ public class Transaction : ICloneable {
         return t;
     }
 
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="senderAddress">node's public key</param>
+    /// <param name="receiverAddress">the receiver node's public key</param>
+    /// <param name="privateKeyCointainer">i.e the private key of the sender to sign the tx ins</param>
+    /// <param name="amount"></param>
+    /// <param name="unspentTxOuts"></param>
+    /// <param name="pool"></param>
+    /// <returns></returns>
     public static Transaction CreateTransaction(string senderAddress, string receiverAddress, CspParameters privateKeyCointainer, int amount, IEnumerable<UnspentTxOut> unspentTxOuts, TransactionPool pool)
     {
         List<UnspentTxOut> myUnspentTxOuts = unspentTxOuts.Where(uto => uto.address == senderAddress).ToList();
@@ -201,6 +225,11 @@ public class Transaction : ICloneable {
         return content.ToString();
     }
 
+    /// <summary>
+    /// Is the transaction valid given the current unspent tx outs of the network
+    /// </summary>
+    /// <param name="unspentTxOuts"></param>
+    /// <returns></returns>
     public bool IsValid(IEnumerable<UnspentTxOut> unspentTxOuts)
     {
         if (ComputeId() != id)
@@ -228,6 +257,12 @@ public class Transaction : ICloneable {
         return true;
     }
 
+    /// <summary>
+    /// Used to enforce the reward amount to all the miners, otherwise
+    /// they could set any amount they want
+    /// </summary>
+    /// <param name="blockIndex"></param>
+    /// <returns></returns>
     public bool IsAValidCoinBaseTx(int blockIndex)
     {
         if (ComputeId() != id)
@@ -268,6 +303,10 @@ public class Transaction : ICloneable {
         id = ComputeId();
     }
 
+    /// <summary>
+    /// The id is a hash of all the transactions' data but the signature
+    /// </summary>
+    /// <returns></returns>
     public string ComputeId()
     {
         StringBuilder content = new StringBuilder();
@@ -276,7 +315,14 @@ public class Transaction : ICloneable {
 
         return Cryptography.CalculateHash(content.ToString());
     }
-
+    
+    /// <summary>
+    /// Sign tx ins with the sender's private key, 'unlocking'
+    /// the coins for the transaction. The generated signature
+    /// can then be checked by anyone with the sender's public key
+    /// </summary>
+    /// <param name="privateKeyCointainer"></param>
+    /// <param name="unspentTxOuts"></param>
     public void SignTxIns(CspParameters privateKeyCointainer, IEnumerable<UnspentTxOut> unspentTxOuts)
     {
         for (int i = 0; i < txIns.Length; i++) txIns[i].ComputeAndSetSignature(id, privateKeyCointainer, unspentTxOuts);

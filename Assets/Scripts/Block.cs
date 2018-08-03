@@ -1,10 +1,16 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.UI;
 
-public class Block : ICloneable {
+/// <summary>
+/// MonoBehaviour wrapping block data, operations and animations
+/// </summary>
+public class Block : MonoBehaviour, ICloneable {
 
+    // block raw data
     public int index { get; private set; }
     public DateTime timestamp { get; private set; }
     public string hash { get; private set; }
@@ -13,35 +19,96 @@ public class Block : ICloneable {
     public int nonce { get; private set; }
     public int difficulty { get; private set; }
 
-    public static Block CreateGenesisBlock(string nodeAddress, int difficulty)
+    // game object components/animations
+    [SerializeField]
+    private SpriteRenderer blockSprite;
+    [SerializeField]
+    private Canvas animatedHashPrefab;
+
+    void Start()
+    {
+        blockSprite.color = new Color(1, 1, 1, 1);
+    }
+
+    /// <summary>
+    /// Init the block's state as the genesis block
+    /// </summary>
+    /// <param name="nodeAddress">node address (wallet's public key)</param>
+    /// <param name="difficulty">starting difficulty</param>
+    public void InitAsGenesis(string nodeAddress, int difficulty)
     {
         Transaction genesisTx = Transaction.CreateCoinbaseTransaction(nodeAddress, 0);
 
-        Block b = new Block(0, DateTime.Now, null, new Transaction[] { genesisTx }, difficulty, 0);
-        b.SetHash(b.ComputeHash());
-
-        return b;
+        Init(0, DateTime.Now, null, new Transaction[] { genesisTx }, difficulty);
+        SetHash(ComputeHash());
     }
 
-    public Block(Block b)
-    {
-        this.index = b.index;
-        this.timestamp = b.timestamp;
-        this.previousHash = b.previousHash;
-        this.data = b.data;
-        this.hash = b.hash;
-        this.difficulty = b.difficulty;
-        this.nonce = b.nonce;
-    }
-
-    public Block(int index, DateTime timestamp, string previousHash, Transaction[] data, int difficulty, int nonce)
+    /// <summary>
+    /// Init the block's state
+    /// </summary>
+    /// <param name="index">index of the block in the chain</param>
+    /// <param name="timestamp">block creation time</param>
+    /// <param name="previousHash">hash of the previous block in the chain</param>
+    /// <param name="data">block's data (transactions)</param>
+    /// <param name="difficulty">current network difficulty</param>
+    public void Init(int index, DateTime timestamp, string previousHash, Transaction[] data, int difficulty)
     {
         this.index = index;
         this.timestamp = timestamp;
         this.previousHash = previousHash;
         this.data = data;
         this.difficulty = difficulty;
-        this.nonce = nonce;
+        this.nonce = 0;
+    }
+
+    /// <summary>
+    /// Clone (instantiate) the attached game object and script's state
+    /// </summary>
+    /// <returns></returns>
+    public object Clone()
+    {
+        Block res = Instantiate(this);
+
+        res.index = index;
+        res.timestamp = timestamp;
+        res.hash = hash;
+        res.previousHash = previousHash;
+        res.data = data;
+        res.difficulty = difficulty;
+        res.nonce = nonce;
+
+        return res;
+    }
+
+    public override string ToString()
+    {
+        return String.Format("Block #{0} [previous hash : {1}, timestamp : {2}, data : {3}, hash : {4}, difficulty : {5}]", index, previousHash, timestamp, data, hash, difficulty);
+    }
+
+    /// <summary>
+    /// Mine the block with unity animations
+    /// </summary>
+    /// <param name="onMined">callback upon block successfuly found</param>
+    /// <returns></returns>
+    public IEnumerator MineBlock(Node.Callback onMined)
+    {
+        Canvas animatedHash;
+        do
+        {
+            yield return new WaitForSeconds(1 / 20f); // limit the mining speed to make the animation more readable
+            nonce++;
+            hash = ComputeHash();
+            blockSprite.color = Color.Lerp(Color.white, new Color(1,1,1,0.2f), Time.time % 1);
+            animatedHash = Instantiate(animatedHashPrefab, transform, false);
+            animatedHash.GetComponentInChildren<Text>().text = hash;
+        } while (!Cryptography.HashMatchesDifficulty(hash, difficulty));
+
+        animatedHash.GetComponent<Animator>().SetTrigger("MatchDifficulty");
+        animatedHash.GetComponentInChildren<Text>().color = Color.green;
+
+        blockSprite.color = Color.white;
+
+        onMined();
     }
 
     public string ComputeHash()
@@ -54,30 +121,7 @@ public class Block : ICloneable {
         this.hash = hash;
     }
 
-    public void IncrementNonce()
-    {
-        nonce++;
-    }
-
-    public override string ToString()
-    {
-        return String.Format("Block #{0} [previous hash : {1}, timestamp : {2}, data : {3}, hash : {4}, difficulty : {5}]", index, previousHash, timestamp, data, hash, difficulty);
-    }
-
-    public object Clone()
-    {
-        return new Block(this);
-    }
-
-    public bool IsHashValid()
-    {
-        if (hash == null) return false;
-        string computedHash = ComputeHash();
-
-        return hash.Equals(computedHash);
-    }
-
-    public bool IsValidFirstBlock()
+    public bool IsValidGenesis()
     {
         if (index != 0) return false;
         if (previousHash != null) return false;
@@ -95,9 +139,12 @@ public class Block : ICloneable {
         return IsHashValid();
     }
 
-    private bool IsTimestampValid(Block prevBlock)
+    public bool IsHashValid()
     {
-        return prevBlock.timestamp < timestamp.AddSeconds(60) && timestamp < DateTime.Now.AddSeconds(60);
+        if (hash == null) return false;
+        string computedHash = ComputeHash();
+
+        return hash.Equals(computedHash);
     }
 
     public bool AreTransactionsValid(Transaction.UnspentTxOut[] unspentTxOuts)
@@ -124,6 +171,17 @@ public class Block : ICloneable {
         return true;
     }
 
+    public bool IsTimestampValid(Block prevBlock)
+    {
+        return prevBlock.timestamp < timestamp.AddSeconds(60) && timestamp < DateTime.Now.AddSeconds(60);
+    }
+
+    /// <summary>
+    /// Process the transactions on the current unspent tx outs (~balances) of the chain
+    /// and return its updated version
+    /// </summary>
+    /// <param name="unspentTxOuts">current unspent tx outs of the chain</param>
+    /// <returns>Updated unspent tx outs after processing the transactions</returns>
     public Transaction.UnspentTxOut[] ProcessTransactions(Transaction.UnspentTxOut[] unspentTxOuts)
     {
         if (!AreTransactionsValid(unspentTxOuts))
